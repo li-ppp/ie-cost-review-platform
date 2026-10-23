@@ -1,0 +1,20 @@
+# 统一换行符策略：仓库内一律存 LF，检出时按操作系统自动转换
+* text=auto eol=lf
+
+# Windows 脚本在检出时需要 CRLF，否则无法执行
+*.bat text eol=crlf
+
+# 二进制文件，禁止任何转换与 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.db binary
+*.exe binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

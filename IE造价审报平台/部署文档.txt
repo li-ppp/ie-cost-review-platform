@@ -1,0 +1,424 @@
+================================================================================
+IE工程造价审报自动生成平台 - 部署文档
+================================================================================
+
+一、环境要求
+------------
+
+1. 操作系统
+   - Windows 10/11（推荐）
+   - Linux (Ubuntu 20.04+)
+   - macOS 10.15+
+
+2. 软件依赖
+   - Python 3.8 或更高版本
+   - Node.js 16 或更高版本
+   - npm 8 或更高版本
+   - Git（可选）
+
+3. 硬件要求
+   - CPU: 2核以上
+   - 内存: 4GB以上
+   - 硬盘: 10GB以上可用空间
+
+二、安装步骤
+------------
+
+2.1 下载项目代码
+-----------------
+方式1: 直接解压项目压缩包
+方式2: 从Git仓库克隆
+   git clone <repository-url>
+   cd 小学期2
+
+2.2 创建Python虚拟环境
+----------------------
+Windows:
+   python -m venv venv
+   venv\Scripts\activate
+
+Linux/Mac:
+   python3 -m venv venv
+   source venv/bin/activate
+
+2.3 安装后端依赖
+----------------
+pip install -r requirements.txt
+
+依赖列表:
+- fastapi==0.104.1
+- uvicorn==0.24.0
+- sqlalchemy==2.0.23
+- pydantic==2.5.0
+- python-multipart==0.0.6
+- openpyxl==3.1.2
+- python-docx==1.1.0
+- reportlab==4.0.7
+- passlib==1.7.4
+- bcrypt==4.1.1
+- python-jose==3.3.0
+- cryptography==41.0.5
+
+2.4 安装前端依赖
+----------------
+cd frontend
+npm install
+
+2.5 初始化数据库
+----------------
+数据库会在首次启动后端时自动创建
+数据库文件位置: backend/data/database.db
+
+三、配置说明
+------------
+
+3.1 后端配置
+------------
+配置文件: backend/main.py
+
+主要配置项:
+- 服务端口: 8000（可在main.py中修改）
+- CORS配置: 允许的前端域名
+- 数据库路径: backend/data/database.db
+- 上传文件路径: backend/uploads/
+
+3.2 前端配置
+------------
+配置文件: frontend/vite.config.ts
+
+主要配置项:
+- 开发服务器端口: 5173
+- API代理: /api -> http://localhost:8000
+- 上传文件代理: /uploads -> http://localhost:8000
+
+3.3 环境变量（可选）
+--------------------
+可以创建 .env 文件设置环境变量:
+
+BACKEND_PORT=8000
+DATABASE_URL=sqlite:///./data/database.db
+UPLOAD_DIR=./uploads
+
+四、启动服务
+------------
+
+4.1 开发环境启动
+----------------
+
+步骤1: 启动后端服务
+   cd backend
+   python main.py
+
+   或使用uvicorn:
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+步骤2: 启动前端服务（新终端）
+   cd frontend
+   npm run dev
+
+访问地址:
+- 前端: http://localhost:5173
+- 后端API: http://localhost:8000
+- API文档: http://localhost:8000/docs
+
+4.2 生产环境部署
+----------------
+
+4.2.1 构建前端
+--------------
+cd frontend
+npm run build
+
+构建产物位于: frontend/dist/
+
+4.2.2 使用Nginx部署
+--------------------
+
+Nginx配置示例:
+
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # 前端静态文件
+    location / {
+        root /path/to/frontend/dist;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 后端API代理
+    location /api {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # 上传文件代理
+    location /uploads {
+        proxy_pass http://localhost:8000;
+    }
+}
+
+4.2.3 使用Gunicorn部署后端
+--------------------------
+
+安装gunicorn:
+pip install gunicorn
+
+启动命令:
+cd backend
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+
+4.2.4 使用systemd管理后端服务（Linux）
+--------------------------------------
+
+创建服务文件: /etc/systemd/system/ie-cost-review.service
+
+[Unit]
+Description=IE Cost Review Platform Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/backend
+Environment="PATH=/path/to/venv/bin"
+ExecStart=/path/to/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b 127.0.0.1:8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+启动服务:
+sudo systemctl start ie-cost-review
+sudo systemctl enable ie-cost-review
+
+五、数据备份
+------------
+
+5.1 数据库备份
+--------------
+SQLite数据库文件位置: backend/data/database.db
+
+备份命令:
+cp backend/data/database.db backend/data/database_backup_$(date +%Y%m%d).db
+
+5.2 上传文件备份
+----------------
+上传文件目录: backend/uploads/
+
+备份命令:
+tar -czf uploads_backup_$(date +%Y%m%d).tar.gz backend/uploads/
+
+5.3 自动备份脚本（Linux）
+-------------------------
+创建备份脚本: /usr/local/bin/backup-ie-cost-review.sh
+
+#!/bin/bash
+BACKUP_DIR=/backup/ie-cost-review
+DATE=$(date +%Y%m%d)
+
+mkdir -p $BACKUP_DIR
+
+# 备份数据库
+cp /path/to/backend/data/database.db $BACKUP_DIR/database_$DATE.db
+
+# 备份上传文件
+tar -czf $BACKUP_DIR/uploads_$DATE.tar.gz /path/to/backend/uploads/
+
+# 删除7天前的备份
+find $BACKUP_DIR -name "*.db" -mtime +7 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
+
+添加定时任务:
+crontab -e
+0 2 * * * /usr/local/bin/backup-ie-cost-review.sh
+
+六、常见问题
+------------
+
+6.1 端口被占用
+--------------
+问题: 启动时提示端口8000或5173被占用
+
+解决:
+1. 查找占用端口的进程:
+   Windows: netstat -ano | findstr :8000
+   Linux: lsof -i :8000
+
+2. 结束进程或修改配置使用其他端口
+
+6.2 数据库锁定
+--------------
+问题: SQLite数据库被锁定，无法写入
+
+解决:
+1. 确保没有其他进程访问数据库
+2. 重启后端服务
+3. 检查文件权限
+
+6.3 文件上传失败
+----------------
+问题: 上传Excel或Word文件失败
+
+解决:
+1. 检查uploads目录是否存在且有写入权限
+2. 检查文件大小是否超过限制
+3. 检查文件格式是否正确
+
+6.4 前端无法连接后端
+--------------------
+问题: 前端页面无法加载数据
+
+解决:
+1. 确保后端服务已启动
+2. 检查vite.config.ts中的代理配置
+3. 检查浏览器控制台是否有CORS错误
+4. 确认后端CORS配置包含前端域名
+
+6.5 报告生成失败
+----------------
+问题: 点击生成报告后报错
+
+解决:
+1. 确保已上传Excel数据
+2. 确保已上传Word模板
+3. 检查模板格式是否正确
+4. 查看后端日志获取详细错误信息
+
+七、性能优化
+------------
+
+7.1 数据库优化
+--------------
+- 定期清理历史数据
+- 对于大量数据，考虑迁移到PostgreSQL
+
+7.2 文件存储优化
+----------------
+- 定期清理临时文件
+- 大文件考虑使用对象存储（如MinIO、AWS S3）
+
+7.3 缓存优化
+------------
+- 添加Redis缓存常用数据
+- 前端使用浏览器缓存
+
+八、安全建议
+------------
+
+8.1 访问控制
+------------
+- 生产环境添加用户认证
+- 使用HTTPS加密传输
+- 配置防火墙规则
+
+8.2 数据安全
+------------
+- 定期备份数据库
+- 限制文件上传大小和类型
+- 验证上传文件内容
+
+8.3 系统安全
+------------
+- 保持依赖包更新
+- 使用虚拟环境隔离依赖
+- 限制文件目录访问权限
+
+九、监控和日志
+--------------
+
+9.1 应用日志
+------------
+后端日志位置: 控制台输出或系统日志
+
+配置日志级别:
+在main.py中添加日志配置:
+import logging
+logging.basicConfig(level=logging.INFO)
+
+9.2 性能监控
+------------
+使用工具监控:
+- CPU和内存使用
+- 磁盘空间
+- 网络流量
+- 数据库性能
+
+9.3 错误追踪
+------------
+建议集成错误追踪服务:
+- Sentry
+- Rollbar
+
+十、升级维护
+------------
+
+10.1 版本升级流程
+-----------------
+1. 备份当前数据库和文件
+2. 停止服务
+3. 更新代码
+4. 更新依赖
+5. 运行数据库迁移（如有）
+6. 启动服务
+7. 验证功能
+
+10.2 回滚方案
+-------------
+1. 停止服务
+2. 恢复数据库备份
+3. 恢复代码版本
+4. 启动服务
+
+十一、局域网部署
+------------
+
+本平台支持局域网内多用户协作：管理员作为主机，普通员工通过浏览器访问。
+后端默认监听 0.0.0.0:8000，可被同网段其他机器访问。
+
+11.1 主机端配置
+----------------
+1. 双击 IE造价审报平台.exe 启动服务（控制台显示 "Starting uvicorn server on 0.0.0.0:8000" 即正常）
+2. 查看本机 IP 地址：
+   Windows: 打开 cmd，执行 ipconfig，找到"IPv4 地址"（如 192.168.1.100）
+3. 确认主机防火墙放行 8000 端口（见 11.4 防火墙配置）
+
+11.2 客户端访问
+----------------
+1. 在同局域网的任意机器打开浏览器（推荐 Chrome / Edge）
+2. 访问 http://<主机IP>:8000（如 http://192.168.1.100:8000）
+3. 用管理员创建的员工账号登录
+
+11.3 权限说明
+--------------
+- 管理员：项目管理、模板管理、报告生成、报告审核、系统设置、数据字典、数据备份、账号管理、操作日志
+- 普通员工：仅能上传 Excel 数据、创建报告新版本、查看项目与报告
+- 权限在后端通过 require_admin 依赖强制校验，前端对非管理员隐藏管理按钮（v-if="isAdmin"）
+- 非管理员尝试调用受限接口将返回 403
+
+11.4 防火墙配置（Windows）
+--------------------------
+如客户端无法访问主机，需在主机放行 8000 端口入站规则。
+
+方式一：图形界面
+1. 控制面板 → 系统和安全 → Windows Defender 防火墙 → 高级设置
+2. 入站规则 → 新建规则
+3. 端口 → TCP → 特定本地端口：8000 → 允许连接
+4. 名称：IE造价审报平台 → 完成
+
+方式二：PowerShell（需管理员权限）
+   New-NetFirewallRule -DisplayName "IE造价审报平台" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow
+
+11.5 账号创建
+--------------
+1. 管理员登录后，进入"账号管理"页面
+2. 点击"新增员工"，输入用户名（至少 2 个字符）和显示名称
+3. 默认密码为 123456，员工首次登录后可自行修改
+4. 如员工忘记密码，管理员可在"账号管理"中重置为默认密码
+
+================================================================================
+文档版本: 1.0.1
+最后更新: 2026-07-06
+================================================================================

@@ -1,0 +1,592 @@
+================================================================================
+IE工程造价审报自动生成平台 - API接口文档  (v2.5)
+================================================================================
+
+基础信息：
+----------
+基础URL: http://localhost:8000
+Swagger文档: http://localhost:8000/docs
+ReDoc文档: http://localhost:8000/redoc
+数据格式: JSON
+认证方式: JWT Bearer Token（除 /api/health 和登录注册外全部端点均需认证）
+默认账号: admin / admin123
+时区: 所有时间字段使用北京时间（UTC+8）
+
+通用请求头：
+----------
+Authorization: Bearer <JWT令牌>     # 登录后所有受保护接口必填
+Content-Type: application/json       # JSON 请求体
+Content-Type: multipart/form-data    # 文件上传
+
+通用响应格式：
+----------
+成功: {"data": ...} 或具体业务对象
+失败: {"detail": "错误描述信息"}
+
+常见HTTP状态码：
+- 200: 成功
+- 201: 创建成功
+- 400: 请求参数错误
+- 401: 未认证 / 令牌失效
+- 403: 无权限（如非管理员访问管理员端点）
+- 404: 资源不存在
+- 422: 数据验证失败
+- 500: 服务器内部错误
+
+================================================================================
+1. 用户认证接口  /api/auth
+================================================================================
+
+1.1 用户注册
+------------
+POST /api/auth/register
+（无需认证）
+
+请求体:
+{
+  "username": "用户名",       // 必填，3-50字符
+  "password": "密码",         // 必填，最少6字符
+  "display_name": "显示名称"  // 可选
+}
+
+响应:
+{
+  "id": 2,
+  "username": "用户名",
+  "display_name": "显示名称",
+  "role": "user",
+  "created_at": "2026-07-06T10:00:00+08:00"
+}
+
+1.2 用户登录
+------------
+POST /api/auth/login
+（无需认证）
+
+请求体:
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+响应:
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "username": "admin",
+    "display_name": "管理员",
+    "role": "admin"
+  }
+}
+
+1.3 获取当前用户
+----------------
+GET /api/auth/me
+
+响应: 当前用户对象（含 id、username、display_name、role）
+
+
+================================================================================
+2. 项目管理接口  /api/projects
+================================================================================
+
+2.1 创建项目
+------------
+POST /api/projects/
+
+请求体:
+{
+  "name": "项目名称",           // 必填
+  "client_name": "建设单位",    // 可选
+  "project_type": "工程类型",   // 可选
+  "status": "draft"             // 可选，默认draft
+}
+
+2.2 获取项目列表
+----------------
+GET /api/projects/?skip=0&limit=100
+
+查询参数:
+- skip: 跳过记录数（默认0）
+- limit: 返回记录数（默认100，上限500）
+
+响应: 项目数组（含 excel_count、report_count）
+
+2.3 获取项目详情
+----------------
+GET /api/projects/{project_id}
+
+2.4 更新项目
+------------
+PUT /api/projects/{project_id}
+
+请求体: { "name": "...", "client_name": "...", "project_type": "...", "status": "..." }
+
+2.5 删除项目
+------------
+DELETE /api/projects/{project_id}
+（同步清理关联的 Excel 物理文件）
+
+2.6 上传 Excel 文件
+-------------------
+POST /api/projects/{project_id}/upload
+Content-Type: multipart/form-data
+
+表单数据:
+- file: Excel 文件（.xlsx，最大 10MB）
+- column_mappings: 可选，手工列映射 override（JSON 字符串）
+
+响应:
+{
+  "message": "文件上传成功",
+  "file_id": 1,
+  "engineering_type": "道路工程",
+  "items_count": 50
+}
+
+说明:
+- 单文件上传（移除 multiple，避免多文件覆盖旧数据）
+- 解析成功后才删除旧数据，失败时回滚
+- 支持 7 类工程的多 Sheet 文件
+- 通用结构推断多级表头，自动识别"审核增减-金额"列
+- 通过 data_start_row 边界控制避免数据行被误读为表头
+
+2.7 获取项目数据
+----------------
+GET /api/projects/{project_id}/data
+
+响应: Excel 文件数组，每个文件包含数据项
+
+2.8 获取项目汇总
+----------------
+GET /api/projects/{project_id}/summary
+
+响应:
+{
+  "project_name": "项目名称",
+  "total_submitted": 28553930.20,
+  "total_audited": 27999128.87,
+  "total_adjustment": -554801.33,
+  "engineering_types": [
+    { "type": "道路工程", "submitted": 13675776.60, "audited": 12742823.62, "adjustment": -932952.98 }
+  ]
+}
+
+2.9 更新数据项
+--------------
+PUT /api/projects/{project_id}/data/{data_id}
+
+请求体: 数据项字段（item_name、unit、submitted_qty 等）
+
+2.10 校验项目数据
+-----------------
+POST /api/projects/{project_id}/validate
+
+响应: { "valid": true, "errors": [], "warnings": [] }
+
+2.11 导出项目数据
+-----------------
+GET /api/projects/{project_id}/export
+
+响应: Excel 文件流（每个工程类型一个 Sheet）
+
+
+================================================================================
+3. 模板管理接口  /api/templates
+================================================================================
+
+3.1 上传模板
+------------
+POST /api/templates/
+Content-Type: multipart/form-data
+
+表单数据:
+- name: 模板名称（必填）
+- template_type: 模板类型（必填）
+- file: Word 文件（.docx，最大 10MB）
+
+3.2 获取模板列表
+----------------
+GET /api/templates/
+
+3.3 获取模板详情
+----------------
+GET /api/templates/{template_id}
+
+3.4 删除模板
+------------
+DELETE /api/templates/{template_id}
+（同步清理模板物理文件）
+
+3.5 预览模板内容
+----------------
+GET /api/templates/{template_id}/preview
+
+响应: { "content": "模板纯文本预览（含占位符）" }
+
+3.6 模板变量扫描与映射配置
+--------------------------
+GET /api/templates/{template_id}/variables
+（扫描 docx 中所有 {{变量名}} 占位符）
+
+PUT /api/templates/{template_id}/variables
+请求体: { "变量名": "数据源字段", ... }
+
+
+================================================================================
+4. 报告生成接口  /api/reports
+================================================================================
+
+4.1 生成报告
+------------
+POST /api/reports/generate
+
+请求体: { "project_id": 1, "template_id": 1 }
+
+响应: 报告对象（状态：generating，后台异步生成）
+
+4.2 获取所有报告
+----------------
+GET /api/reports/
+
+4.3 获取项目的所有报告
+----------------------
+GET /api/reports/project/{project_id}
+
+4.4 获取报告详情
+----------------
+GET /api/reports/{report_id}
+
+4.5 下载报告
+------------
+GET /api/reports/{report_id}/download
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document
+（中文文件名使用 RFC 5987 编码，并提供 ASCII fallback）
+
+4.6 预览报告
+------------
+GET /api/reports/{report_id}/preview
+
+4.7 导出 PDF
+------------
+GET /api/reports/{report_id}/export-pdf
+
+4.8 报告审核
+------------
+PUT /api/reports/{report_id}/review
+（仅管理员）
+
+请求体:
+{
+  "review_status": "reviewing",   // reviewing/approved/rejected
+  "review_comment": "审核意见"
+}
+
+4.9 审核历史
+------------
+GET /api/reports/{report_id}/review-history
+
+4.10 创建新版本
+---------------
+POST /api/reports/{report_id}/new-version
+（基于当前 Excel 数据重新生成报告，而非复制旧文件）
+
+4.11 获取版本列表
+-----------------
+GET /api/reports/{report_id}/versions
+
+4.12 版本对比
+-------------
+GET /api/reports/{report_id}/compare/{other_id}
+（基于 difflib 对比两版本段落差异）
+
+
+================================================================================
+5. 操作日志接口  /api/logs   （仅管理员）
+================================================================================
+
+5.1 获取操作日志
+----------------
+GET /api/logs/?skip=0&limit=50
+
+响应: { "total": 100, "items": [...] }
+
+记录的操作: 登录、注册、创建项目、上传 Excel、生成报告、审核等
+
+
+================================================================================
+6. 系统设置接口  /api/settings
+================================================================================
+
+6.1 获取所有设置
+----------------
+GET /api/settings/
+（所有登录用户可读）
+
+6.2 获取指定设置项
+------------------
+GET /api/settings/{key}
+
+6.3 更新设置项
+--------------
+PUT /api/settings/{key}
+（仅管理员）
+
+6.4 删除设置项
+--------------
+DELETE /api/settings/{key}
+（仅管理员）
+
+默认设置项:
+- company_name: 公司名称
+- report_title_prefix: 报告标题前缀
+- max_upload_size_mb: 最大上传文件大小
+- supported_engineering_types: 支持的工程类型
+
+
+================================================================================
+7. 数据备份接口  /api/backup   （仅管理员）
+================================================================================
+
+7.1 创建备份
+------------
+POST /api/backup/create
+（复制 database.db + uploads/ 目录，按时间戳归档至 data/backups/）
+
+7.2 备份列表
+------------
+GET /api/backup/list
+
+7.3 恢复备份
+------------
+POST /api/backup/restore/{backup_id}
+
+7.4 删除备份
+------------
+DELETE /api/backup/{backup_id}
+
+
+================================================================================
+8. 数据字典接口  /api/dictionary
+================================================================================
+
+8.1 字典项 CRUD
+---------------
+GET    /api/dictionary/                  列表（支持分类过滤）
+POST   /api/dictionary/                  新增
+GET    /api/dictionary/{item_id}         详情
+PUT    /api/dictionary/{item_id}         更新
+DELETE /api/dictionary/{item_id}         删除
+
+8.2 获取所有分类
+----------------
+GET /api/dictionary/categories
+
+预置数据: 20 条默认数据（7 工程类型、9 计量单位、4 项目状态）
+
+
+================================================================================
+9. 用户管理接口  /api/users   （仅管理员）
+================================================================================
+
+9.1 用户列表
+------------
+GET /api/users/
+
+9.2 创建用户
+------------
+POST /api/users/
+
+9.3 更新用户
+------------
+PUT /api/users/{user_id}
+
+9.4 删除用户
+------------
+DELETE /api/users/{user_id}
+
+
+================================================================================
+10. 系统接口
+================================================================================
+
+10.1 健康检查
+-------------
+GET /api/health
+（无需认证，前端每 3 秒轮询此端点检测服务状态）
+
+响应:
+{
+  "status": "healthy"
+}
+
+前端联动:
+- 连续 2 次失败（约 6 秒）后显示"服务已停止"全屏遮罩
+- 登录页豁免（未登录时不发起健康检测）
+- 使用原生 fetch 绕过 axios 拦截器，避免 401 干扰
+
+10.2 根路径
+-----------
+GET /
+
+响应:
+{
+  "message": "IE工程造价审报自动生成平台 API",
+  "version": "2.5.0",
+  "docs": "/docs"
+}
+
+10.3 前端静态资源
+-----------------
+GET /{path}
+（SPA 路由兜底，所有未匹配的非 /api 路径返回 index.html）
+
+
+================================================================================
+11. 数据模型说明
+================================================================================
+
+工程类型枚举:
+- 道路工程、排水工程、照明工程、交安工程、桥涵工程、电力工程、通信工程
+
+项目状态枚举:
+- draft: 草稿
+- in_progress: 进行中
+- completed: 已完成
+- archived: 已归档
+
+报告状态枚举:
+- generating: 生成中
+- generated: 已生成
+- failed: 失败
+
+审核状态枚举:
+- draft: 草稿
+- reviewing: 审核中
+- approved: 已通过
+- rejected: 已驳回
+
+Excel 数据字段:
+| 字段 | 说明 |
+|------|------|
+| name | 项目名称 |
+| unit | 计量单位 |
+| submitted_qty | 送审工程量 |
+| submitted_price | 送审单价 |
+| submitted_total | 送审合价 |
+| audited_qty | 审定工程量 |
+| audited_price | 审定单价 |
+| audited_total | 审定合价 |
+| adjustment | 审增/审减金额（正数=审增，负数=审减） |
+
+
+================================================================================
+12. Excel 多级表头识别说明（v2.5 核心特性）
+================================================================================
+
+v2.5 采用通用结构推断算法识别多级表头，不依赖任何关键词：
+
+12.1 表头层级识别
+-----------------
+- 组表头（top_row）: 最顶层有内容的行，如"送审工程"/"审结工程"/"审计结果"
+- 子组标题（subgroup）: 中间行单元格，当且仅当最底行同列也有值时识别为子组标题
+- 叶子单元格（leaf）: 最底行的单元格，或中间行下方无更细分的单元格
+
+12.2 adjustment 列四遍扫描策略
+-------------------------------
+1. 审计结果/审核增减/调整组内，叶子含特定别名（审增金额/审减金额/调整金额等）
+   —— 子组标题被排除，避免误命中
+2. 审计结果/审核增减/调整组内，叶子含通用"金额"
+3. 无组表头时，全局叶子含特定别名
+4. 旧模板兼容：full_text 同时含"审核增减"和"金额"
+
+12.3 data_start_row 边界控制
+----------------------------
+通过传入数据起始行，限制表头读取范围（仅读到 data_start_row-1），
+避免数据行（如"土方工程"分组标题）被误读为表头层，破坏子组识别。
+
+12.4 子组标题排除逻辑
+----------------------
+中间行单元格 (r, c) 是子组标题，当且仅当最底行 (last_row, c) 也有值。
+若最底行同列为空，则中间行单元格本身就是叶子（如"工程量"列在 R4 有值、R5 为空，
+说明工程量无需再细分单价/合价，R4 的"工程量"就是叶子）。
+
+
+================================================================================
+13. 系统托盘与健康检测（v2.5 运行监控）
+================================================================================
+
+13.1 系统托盘图标
+-----------------
+- exe 运行时显示蓝色"IE"托盘图标
+- 菜单选项："打开浏览器"、"退出服务"
+- "退出服务"触发 icon.stop() + os._exit(0) 终止进程
+- uvicorn 在 daemon 线程运行，托盘在主线程
+
+13.2 前端健康检测
+-----------------
+- 每 3 秒轮询 /api/health 端点
+- 连续 2 次失败（约 6 秒）后显示全屏遮罩
+- 遮罩提示"服务已停止"，提供"关闭页面"按钮
+- 登录页豁免（未登录时不发起检测）
+- 使用原生 fetch 绕过 axios 拦截器
+
+13.3 退出联动
+-------------
+托盘"退出服务"后，前端检测到服务停止，显示遮罩提示用户关闭页面。
+（注：浏览器安全限制，JS 无法关闭用户打开的标签页，仅能引导用户手动关闭）
+
+
+================================================================================
+14. 使用示例
+================================================================================
+
+14.1 完整流程示例
+------------------
+# 1. 登录获取令牌
+curl -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+
+# 2. 创建项目
+curl -X POST http://localhost:8000/api/projects/ \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "XX路项目", "client_name": "成都XX发展有限公司"}'
+
+# 3. 上传 Excel（支持多级表头自动识别）
+curl -X POST http://localhost:8000/api/projects/1/upload \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@XX路项目.xlsx"
+
+# 4. 上传模板
+curl -X POST http://localhost:8000/api/templates/ \
+  -H "Authorization: Bearer <token>" \
+  -F "name=预算评审报告模板" \
+  -F "template_type=预算评审报告" \
+  -F "file=@评审报告模板.docx"
+
+# 5. 生成报告
+curl -X POST http://localhost:8000/api/reports/generate \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": 1, "template_id": 1}'
+
+# 6. 下载报告
+curl http://localhost:8000/api/reports/1/download \
+  -H "Authorization: Bearer <token>" -o report.docx
+
+14.2 健康检测示例
+------------------
+curl http://localhost:8000/api/health
+# 返回: {"status": "healthy"}
+
+
+================================================================================
+文档版本: 2.5.0
+最后更新: 2026-07-06
+================================================================================
+                              文档结束
+================================================================================

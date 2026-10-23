@@ -1,0 +1,108 @@
+# ==========================================================
+# IE 造价审报平台 / 小学期交付仓库 —— Git 忽略规则
+# 目标：仓库只保留「源码 + 文档 + 脱敏样例」，不含任何
+#       虚拟环境、依赖包、构建产物、本地数据库、个人隐私数据。
+# ==========================================================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.installed.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ---------- 虚拟环境 ----------
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ---------- 打包 / 构建产物 ----------
+build/
+dist/
+dist-*/
+*.spec.bak
+*.exe
+*.msi
+*.pkg
+*.msix
+*.app
+.manifest
+
+# ---------- Node / 前端 ----------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vite/
+web_modules/
+
+# ---------- 测试与覆盖率缓存 ----------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+
+# ---------- 运行时数据（含账号哈希、操作日志、上传原件，禁止入库）----------
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+IE造价审报平台/data/
+IE造价审报平台/logs/
+IE造价审报平台/uploads/
+IE造价审报平台/backend/data/
+IE造价审报平台/backend/uploads/
+IE造价审报平台/backend/ie_platform.db
+
+# ---------- 本机 / 编辑器 / 系统 ----------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
+
+# ---------- Office 临时锁文件 ----------
+~$*
+~WRL*.tmp
+
+# ---------- AI 工具 / Agent 元数据 ----------
+.trae/
+.agents/
+.workbuddy/
+.claude/
+.cursor/
+.augment/
+
+# ---------- 环境变量 ----------
+.env
+.env.local
+.env.*.local
+
+# ---------- 预览/编辑器残留锁文件 ----------
+*.live_preview.lock
+
+# ---------- 打包日志 ----------
+build_log.txt
+*.log.tmp
